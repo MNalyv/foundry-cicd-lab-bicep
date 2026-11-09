@@ -1,0 +1,62 @@
+# Инфраструктура как код (Bicep): Foundry resource, проекты dev/prod, развёртывание модели.
+# PR → what-if (что изменится, без изменений). Merge в main → развёртывание.
+name: infra
+
+on:
+  pull_request:
+    paths: ["infra/**"]
+  push:
+    branches: [main]
+    paths: ["infra/**"]
+  workflow_dispatch:
+
+permissions:
+  id-token: write   # без этого GitHub не выдаст OIDC-токен
+  contents: read
+
+env:
+  RG: ${{ vars.AZURE_RESOURCE_GROUP }}
+
+jobs:
+  bicep:
+    runs-on: ubuntu-latest
+    environment: infra   # → subject OIDC: repo:<owner>/<repo>:environment:infra
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Вход в Azure через OIDC (без секретов)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: bicep build (проверка синтаксиса, компиляция в ARM)
+        run: az bicep build --file infra/main.bicep --stdout > /dev/null
+
+      - name: what-if (аналог terraform plan)
+        run: >
+          az deployment group what-if
+          --resource-group "$RG"
+          --template-file infra/main.bicep
+          --parameters infra/main.bicepparam
+
+      - name: Развёртывание
+        if: github.event_name != 'pull_request'
+        run: >
+          az deployment group create
+          --name "foundry-lab-${{ github.run_number }}"
+          --resource-group "$RG"
+          --template-file infra/main.bicep
+          --parameters infra/main.bicepparam
+          --output none
+
+      - name: Вывести endpoints проектов
+        if: github.event_name != 'pull_request'
+        run: |
+          echo "### Project endpoints → скопируйте в config/*.json" >> "$GITHUB_STEP_SUMMARY"
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          az deployment group show --resource-group "$RG" \
+            --name "foundry-lab-${{ github.run_number }}" \
+            --query properties.outputs.projectEndpoints.value -o json >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

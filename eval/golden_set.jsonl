@@ -1,0 +1,7 @@
+{"id": "hotel", "question": "Какой лимит на отель за ночь?", "expected_any": ["150"], "forbidden": []}
+{"id": "flight_short", "question": "Лечу 3 часа. Можно бизнес-класс?", "expected_any": ["эконом"], "forbidden": []}
+{"id": "flight_long", "question": "Перелёт 9 часов. Какой класс можно взять?", "expected_any": ["бизнес"], "forbidden": []}
+{"id": "report", "question": "В какой срок сдать авансовый отчёт?", "expected_any": ["30"], "forbidden": []}
+{"id": "per_diem", "question": "Сколько суточных в день?", "expected_any": ["50"], "forbidden": []}
+{"id": "taxi", "question": "Можно ехать на такси из отеля в ресторан?", "expected_any": ["аэропорт", "нельзя", "только"], "forbidden": []}
+{"id": "unknown", "question": "Компенсируют ли абонемент в спортзал?", "expected_any": ["HR"], "forbidden": []}

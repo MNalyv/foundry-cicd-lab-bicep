@@ -1,0 +1,55 @@
+# CI: на каждый pull request.
+#   1) статические проверки (без Azure)
+#   2) развёртывание в DEV + quality gate (evaluators). Ниже порога → PR нельзя сливать.
+name: ci
+
+on:
+  pull_request:
+    paths: ["agent/**", "eval/**", "config/**", "scripts/**", "requirements.txt"]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Проверка agent.yaml, golden set и конфигов
+        run: python scripts/validate.py
+
+  eval-dev:
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: dev   # → subject OIDC: ...:environment:dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+
+      - name: Вход в Azure через OIDC (без секретов)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Новая версия агента в DEV
+        run: python scripts/deploy_agent.py --env dev
+
+      - name: Quality gate (evaluators)
+        run: python scripts/run_eval.py --env dev
+
+      - name: Сохранить отчёт оценки
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-report-dev
+          path: eval/reports/

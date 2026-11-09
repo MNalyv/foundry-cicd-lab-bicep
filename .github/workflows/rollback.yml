@@ -1,0 +1,44 @@
+# Ручной откат: переключить version selector на прошлую проверенную версию.
+# Это смена маршрутизации, а не пересборка — поэтому занимает секунды.
+name: rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Окружение"
+        type: choice
+        options: [prod, dev]
+        default: prod
+      version:
+        description: "Номер версии агента, на которую вернуть 100% трафика"
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Было
+        run: python scripts/endpoint_routing.py show --env ${{ inputs.environment }}
+
+      - name: Pin на прошлую версию
+        run: python scripts/endpoint_routing.py pin --env ${{ inputs.environment }} --version ${{ inputs.version }}
+
+      - name: Стало
+        run: python scripts/endpoint_routing.py show --env ${{ inputs.environment }}

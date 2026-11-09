@@ -1,0 +1,5 @@
+{
+  "environment": "dev",
+  "project_endpoint": "https://<foundry_name>.services.ai.azure.com/api/projects/proj-dev",
+  "min_pass_rate": 0.8
+}

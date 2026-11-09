@@ -1,0 +1,72 @@
+# CD: после merge в main.
+#   DEV  : новая версия + quality gate         (selector в dev = always use latest)
+#   PROD : ручное одобрение (Required reviewers) → защитить текущую версию →
+#          создать ТУ ЖЕ версию из того же agent.yaml (promotion) → pin →
+#          smoke-проверка → при провале автоматический откат (rollback)
+name: cd
+
+on:
+  push:
+    branches: [main]
+    paths: ["agent/**", "eval/**", "config/**", "scripts/**"]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  dev:
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Развернуть в DEV
+        run: python scripts/deploy_agent.py --env dev
+
+      - name: Quality gate DEV
+        run: python scripts/run_eval.py --env dev
+
+  prod:
+    needs: dev                 # опора 2: в prod попадает только то, что прошло gate
+    runs-on: ubuntu-latest
+    environment: prod          # опора 1 + ручное одобрение (настройте Required reviewers)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Защитить prod (если стоит latest — закрепить текущую версию)
+        id: before
+        run: python scripts/endpoint_routing.py protect --env prod
+
+      - name: Promotion — то же определение агента в PROD
+        id: deploy
+        run: python scripts/deploy_agent.py --env prod
+
+      - name: Pin — направить трафик на новую версию
+        run: python scripts/endpoint_routing.py pin --env prod --version ${{ steps.deploy.outputs.agent_version }}
+
+      - name: Smoke-проверка в PROD
+        run: python scripts/run_eval.py --env prod
+
+      - name: Автоматический откат (опора 3)
+        if: failure() && steps.before.outputs.previous_version != ''
+        run: python scripts/endpoint_routing.py pin --env prod --version ${{ steps.before.outputs.previous_version }}
