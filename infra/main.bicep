@@ -78,6 +78,10 @@ resource foundry 'Microsoft.CognitiveServices/accounts@2025-06-01' = {
 }
 
 // 2. Отдельный проект на каждое окружение (dev, prod)
+// @batchSize(1): создавать проекты ПО ОЧЕРЕДИ, а не параллельно. Оба проекта
+// меняют один родительский ресурс, и Azure отвечает "RequestConflict: Another
+// operation is being performed on the parent resource".
+@batchSize(1)
 resource projects 'Microsoft.CognitiveServices/accounts/projects@2025-06-01' = [
   for projectName in projectNames: {
     parent: foundry
