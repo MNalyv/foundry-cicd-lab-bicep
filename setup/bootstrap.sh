@@ -16,6 +16,12 @@
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
+# Windows/Git Bash (MSYS2) превращает аргументы вида "/subscriptions/..." в пути
+# Windows ("C:\Program Files\Git\subscriptions\..."), и Azure получает неверный scope.
+# Отключаем это преобразование. На Linux и в Cloud Shell переменная ни на что не влияет.
+export MSYS_NO_PATHCONV=1
+export MSYS2_ARG_CONV_EXCL="*"
+
 : "${GITHUB_REPO:?Укажите GITHUB_REPO в формате owner/repo}"
 : "${LOCATION:?Укажите LOCATION (регион, где доступна выбранная модель)}"
 RG="${RG:-rg-foundry-cicd-lab-bicep}"
