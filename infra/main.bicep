@@ -67,6 +67,13 @@ resource foundry 'Microsoft.CognitiveServices/accounts@2025-06-01' = {
     customSubDomainName: foundryName // https://<имя>.services.ai.azure.com
     disableLocalAuth: true // keyless: только Entra ID, без API-ключей
     publicNetworkAccess: 'Enabled' // для учебы; в prod — private endpoints
+    // Обязательное свойство: без него Azure отвечает "NetworkAcls is required
+    // for this resouce". 'Allow' = доступ открыт, списки ограничений пусты.
+    networkAcls: {
+      defaultAction: 'Allow'
+      ipRules: []
+      virtualNetworkRules: []
+    }
   }
 }
 
